@@ -1,0 +1,64 @@
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python caches and test/tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.secret
+*.credentials
+credentials.json
+secrets.toml
+secrets/
+.secrets/
+
+# Local databases and database sidecars
+*.db
+*.sqlite
+*.sqlite3
+*.db-*
+*.sqlite-*
+
+# Generated model weights and local model artifacts
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.onnx
+models/
+model/
+
+# Local vector stores and generated data
+chroma/
+chroma_db/
+vector_store/
+data/generated/
+complaints/
+
+# Audit-only policy copies and pre-finalization backups
+/knowledge_base/policies_corrected/
+/policy_backups/
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+
+# Editor and operating system artifacts
+.DS_Store
+Thumbs.db
+.vscode/
