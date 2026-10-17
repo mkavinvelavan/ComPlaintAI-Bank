@@ -10,16 +10,18 @@ narrative facts to evaluate those conditions directly.
 
 The policy does not set a numeric confidence threshold. By default, callers
 must not assume one: a threshold may be supplied as a project configuration,
-in which case lower-confidence results trigger review and at least MEDIUM
-priority. Unknown labels, missing/invalid confidence, and credential exposure
-always receive a safe review fallback.
+in which case lower-confidence results trigger general review and at least
+MEDIUM priority. A high-risk prediction without a majority of high-risk labels
+among its returned top candidates also falls back to general review. Unknown
+labels, missing/invalid confidence, and credential exposure receive safe
+review handling.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import Any, Mapping, TypedDict
 
 
 @dataclass(frozen=True)
@@ -165,6 +167,30 @@ _REASON_TEXT = {
 _PRIORITY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 
 
+def _high_risk_prediction_is_ambiguous(processed: Mapping[str, Any]) -> bool:
+    """Flag a high-risk winner without majority agreement in its top candidates.
+
+    This categorical agreement check uses the candidates already returned by
+    BERT and introduces no new confidence threshold. Unknown or missing
+    candidates cannot establish agreement, so they fail closed to review.
+    """
+    candidates = processed.get("top_predictions")
+    if not isinstance(candidates, list) or not candidates:
+        return True
+
+    high_risk_votes = 0
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            return True
+        intent = candidate.get("intent")
+        rule = INTENT_RULES.get(intent) if isinstance(intent, str) else None
+        if rule is None:
+            return True
+        if rule.priority == "HIGH":
+            high_risk_votes += 1
+    return high_risk_votes * 2 <= len(candidates)
+
+
 class ComplaintPriorityEngine:
     """Assign a rule-based internal priority and project queue suggestion.
 
@@ -200,6 +226,11 @@ class ComplaintPriorityEngine:
 
         intent = processed_complaint.get("predicted_intent")
         known_rule = isinstance(intent, str) and intent in INTENT_RULES
+        ambiguous_high_risk = bool(
+            known_rule
+            and INTENT_RULES[intent].priority == "HIGH"
+            and _high_risk_prediction_is_ambiguous(processed_complaint)
+        )
         if known_rule:
             rule = INTENT_RULES[intent]
             priority = rule.priority
@@ -217,6 +248,16 @@ class ComplaintPriorityEngine:
             ]
             manual_review = True
 
+        if ambiguous_high_risk:
+            priority = "MEDIUM"
+            queue = "general complaint resolution"
+            reason_codes = ["AMBIGUOUS_HIGH_RISK_INTENT_REVIEW"]
+            reason_parts = [
+                "The top classifier candidates do not agree on a high-risk category; "
+                "use general complaint review without treating the predicted label as fact."
+            ]
+            manual_review = True
+
         confidence = processed_complaint.get("confidence")
         valid_confidence = (
             isinstance(confidence, (int, float))
@@ -225,8 +266,11 @@ class ComplaintPriorityEngine:
             and 0.0 <= confidence <= 1.0
         )
         if not valid_confidence:
-            priority = self._minimum_priority(priority, "MEDIUM")
-            if priority == "MEDIUM" and known_rule and rule.priority == "LOW":
+            if known_rule and rule.priority == "HIGH":
+                priority = "MEDIUM"
+            else:
+                priority = self._minimum_priority(priority, "MEDIUM")
+            if known_rule:
                 queue = "general complaint resolution"
             reason_codes.append("MISSING_OR_INVALID_CONFIDENCE_REVIEW")
             reason_parts.append(
@@ -238,8 +282,11 @@ class ComplaintPriorityEngine:
             self.low_confidence_threshold is not None
             and confidence < self.low_confidence_threshold
         ):
-            priority = self._minimum_priority(priority, "MEDIUM")
-            if priority == "MEDIUM" and known_rule and rule.priority == "LOW":
+            if known_rule and rule.priority == "HIGH":
+                priority = "MEDIUM"
+            else:
+                priority = self._minimum_priority(priority, "MEDIUM")
+            if known_rule:
                 queue = "general complaint resolution"
             reason_codes.append("LOW_CONFIDENCE_REVIEW")
             reason_parts.append(

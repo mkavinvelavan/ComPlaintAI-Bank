@@ -21,7 +21,7 @@ class ComplaintPriorityEngineTests(unittest.TestCase):
         result: dict[str, object] = {
             "predicted_intent": intent,
             "confidence": confidence,
-            "top_predictions": [],
+            "top_predictions": [{"intent": intent, "confidence": confidence}],
             "entities": [],
             "sensitive_disclosure_detected": False,
             "sensitive_categories": [],
@@ -108,6 +108,45 @@ class ComplaintPriorityEngineTests(unittest.TestCase):
             "MISSING_OR_INVALID_CONFIDENCE_REVIEW", assessment["reason_codes"]
         )
         self.assertTrue(assessment["manual_review_required"])
+
+    def test_conflicting_top_candidates_route_high_prediction_to_general_review(self) -> None:
+        processed = self.processed(
+            intent="direct_debit_payment_not_recognised",
+            confidence=0.312023,
+            top_predictions=[
+                {"intent": "direct_debit_payment_not_recognised", "confidence": 0.312023},
+                {"intent": "card_arrival", "confidence": 0.093650},
+                {"intent": "card_delivery_estimate", "confidence": 0.088288},
+            ],
+        )
+
+        assessment = self.engine.assess(processed)
+
+        self.assertEqual(assessment["priority"], "MEDIUM")
+        self.assertEqual(
+            assessment["department_suggestion"], "general complaint resolution"
+        )
+        self.assertIn(
+            "AMBIGUOUS_HIGH_RISK_INTENT_REVIEW", assessment["reason_codes"]
+        )
+        self.assertTrue(assessment["manual_review_required"])
+
+    def test_configured_low_confidence_high_prediction_uses_general_review(self) -> None:
+        engine = ComplaintPriorityEngine(low_confidence_threshold=0.5)
+        assessment = engine.assess(
+            self.processed(
+                intent="direct_debit_payment_not_recognised",
+                confidence=0.312023,
+                top_predictions=[
+                    {"intent": "direct_debit_payment_not_recognised", "confidence": 0.312023}
+                ],
+            )
+        )
+        self.assertEqual(assessment["priority"], "MEDIUM")
+        self.assertEqual(
+            assessment["department_suggestion"], "general complaint resolution"
+        )
+        self.assertIn("LOW_CONFIDENCE_REVIEW", assessment["reason_codes"])
 
     def test_reason_code_and_explanation_match_the_fired_rule(self) -> None:
         assessment = self.engine.assess(

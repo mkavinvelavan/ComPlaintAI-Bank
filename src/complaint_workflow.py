@@ -70,6 +70,17 @@ class ComplaintWorkflow:
             "predicted_intent": processed.get("predicted_intent"),
             "confidence": processed.get("confidence"),
             "top_predictions": processed.get("top_predictions", []),
+            "model_prediction": processed.get(
+                "model_prediction",
+                {
+                    "predicted_intent": processed.get("predicted_intent"),
+                    "confidence": processed.get("confidence"),
+                    "top_predictions": processed.get("top_predictions", []),
+                },
+            ),
+            "intent_correction": processed.get(
+                "intent_correction", {"applied": False, "rule": None}
+            ),
             "is_model_prediction_not_verified_finding": True,
         }
         entities = processed.get("entities", [])

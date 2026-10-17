@@ -6,17 +6,20 @@ from typing import Any, TypedDict
 
 from src.bert_intent_classifier import BertIntentClassifier
 from src.entity_extractor import SpacyEntityExtractor
+from src.intent_corrections import correct_card_delivery_intent
 
 
 class ComplaintProcessingResult(TypedDict):
     """Combined prediction and extraction result; does not include complaint text."""
 
     predicted_intent: str
-    confidence: float
+    confidence: float | None
     top_predictions: list[dict[str, Any]]
     entities: list[dict[str, Any]]
     sensitive_disclosure_detected: bool
     sensitive_categories: list[str]
+    model_prediction: dict[str, Any]
+    intent_correction: dict[str, Any]
 
 
 class ComplaintProcessor:
@@ -74,6 +77,21 @@ class ComplaintProcessor:
                 "BERT classifier returned an invalid result; expected predicted_intent, "
                 "confidence, and top_predictions."
             )
+
+        # Keep the complete untouched model output for diagnosis. A corrected
+        # intent has no calibrated BERT score, so confidence is omitted for the
+        # corrected label and the raw model score remains in model_prediction.
+        model_prediction = {
+            "predicted_intent": classification["predicted_intent"],
+            "confidence": classification["confidence"],
+            "top_predictions": classification["top_predictions"],
+        }
+        corrected_intent = correct_card_delivery_intent(text)
+        correction_applied = (
+            corrected_intent is not None
+            and corrected_intent != classification["predicted_intent"]
+        )
+        final_intent = corrected_intent or classification["predicted_intent"]
         if not isinstance(extraction, dict) or not isinstance(extraction.get("entities"), list):
             raise RuntimeError(
                 "Entity extractor returned an invalid result; expected an entities list."
@@ -92,10 +110,15 @@ class ComplaintProcessor:
             raise RuntimeError("Entity extractor returned invalid credential disclosure fields.")
 
         return {
-            "predicted_intent": classification["predicted_intent"],
-            "confidence": classification["confidence"],
+            "predicted_intent": final_intent,
+            "confidence": None if correction_applied else classification["confidence"],
             "top_predictions": classification["top_predictions"],
             "entities": extraction["entities"],
             "sensitive_disclosure_detected": disclosure_detected,
             "sensitive_categories": sensitive_categories,
+            "model_prediction": model_prediction,
+            "intent_correction": {
+                "applied": correction_applied,
+                "rule": corrected_intent if correction_applied else None,
+            },
         }
