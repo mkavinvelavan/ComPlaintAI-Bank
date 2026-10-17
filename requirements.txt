@@ -1,0 +1,13 @@
+# Runtime dependencies for the implemented classifier, extraction, and RAG components.
+torch>=2.2
+transformers==4.46.3
+huggingface-hub>=0.26,<1
+safetensors>=0.4.1
+spacy>=3.7,<4
+pypdf>=5.0
+sentence-transformers==3.4.1
+chromadb>=1.5,<2
+groq>=1.7,<2
+python-dotenv>=1.0,<2
+psycopg[binary]>=3.2,<4
+streamlit>=1.61,<2

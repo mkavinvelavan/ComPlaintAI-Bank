@@ -47,6 +47,15 @@ chroma_db/
 vector_store/
 data/generated/
 complaints/
+/.cache/
+/hf_cache/
+/sentence_transformers_cache/
+/.huggingface/
+/data/chroma_db/
+/training_outputs/
+/runs/
+/huggingface_cache/
+/hf_home/
 
 # Audit-only policy copies and pre-finalization backups
 /knowledge_base/policies_corrected/
