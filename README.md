@@ -555,3 +555,6 @@ The current administrator authentication is a project-level demonstration mechan
 ---
 
 **ComPlaintAI-Bank — Academic project demonstration.**
+**KAVINVELAVAN MANIVASAKAN**
+**STUDENT ID: 1704564**
+
